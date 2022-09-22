@@ -8,7 +8,6 @@ include("macros.jl")
 include("typeutils.jl")
 include("variableDecls.jl")
 include("structUtils.jl")
-include("shaders.jl")
 
 export @builtin, @location, wgslCode, wglsType, @var, @letvar, makePaddedWGSLStruct, makePaddedStruct,
 	makeStruct, StorageVar, UniformVar, PrivateVar, BuiltIn, BuiltInDataType, BuiltinValue,
