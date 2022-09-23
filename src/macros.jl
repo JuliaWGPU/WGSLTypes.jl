@@ -107,14 +107,35 @@ function wgslFunctionBody(fnbody, io, endstring)
 		len = length(fnargs)
 		endstring = len > 0 ? "}\n" : ""
 		for (idx, arg) in enumerate(fnargs)
+			arg = eval(arg)
 			if @capture(arg, aarg_::aatype_)
 				intype = wgslType(eval(aatype))
 				write(io, "$aarg:$(intype)"*(len==idx ? "" : ", "))
+			elseif @capture(arg, @builtin e_ => id_::typ_)
+				intype = wgslType(eval(typ))
+				write(io, "@builtin($e) $id:$(intype)")
 			end
 			@capture(fnargs, aarg_) || error("Expecting type for function argument in WGSL!")
 		end
 		outtype = wgslType(eval(fnout))
 		write(io, ") -> $outtype { \n")
+		@capture(fnbody[2], stmnts__) || error("Expecting quote statements")
+		wgslFunctionStatements(io, stmnts)
+	elseif @capture(fnbody[1], fnname_(fnargs__))
+		write(io, "fn $fnname(")
+		len = length(fnargs)
+		endstring = len > 0 ? "}\n" : ""
+		for (idx, arg) in enumerate(fnargs)
+			if @capture(arg, aarg_::aatype_)
+				intype = wgslType(eval(aatype))
+				write(io, "$aarg:$(intype)"*(len==idx ? "" : ", "))
+			elseif @capture(arg, @builtin e_ => id_::typ_)
+				intype = wgslType(eval(typ))
+				write(io, "@builtin($e) $id:$(intype)")
+			end
+			@capture(fnargs, aarg_) || error("Expecting type for function argument in WGSL!")
+		end
+		write(io, ") { \n")
 		@capture(fnbody[2], stmnts__) || error("Expecting quote statements")
 		wgslFunctionStatements(io, stmnts)
 	end
@@ -140,6 +161,17 @@ function wgslFragment(expr)
 	endstring = ""
 	@capture(expr, @fragment function fnbody__ end) || error("Expecting regular function!")
 	write(io, "@stage(fragment) ") # TODO should depend on version
+	wgslFunctionBody(fnbody, io, endstring)
+	seek(io, 0)
+	code = read(io, String)
+	close(io)
+	return code
+end
+
+function wgslCompute(expr)
+	io = IOBuffer()
+	endstring = ""
+	@capture(expr, @compute @workgroupSize(x_, y_, z_) function fnbody__ end) || error("Expecting regular function!")
 	wgslFunctionBody(fnbody, io, endstring)
 	seek(io, 0)
 	code = read(io, String)
@@ -192,6 +224,10 @@ function wgslCode(expr)
 			write(io, wgslVariable(block))
 		elseif @capture(block, @vertex function a__ end)
 			write(io, wgslVertex(block))
+			write(io, "\n")
+		elseif @capture(block, @compute @workgroupSize(x_, y_, z_) function a__ end)
+			write(io, "@stage(compute) @workgroup_size($x, $y, $z) \n")
+			write(io, wgslCompute(block))
 			write(io, "\n")
 		elseif @capture(block, @fragment function a__ end)
 			write(io, wgslFragment(block))
