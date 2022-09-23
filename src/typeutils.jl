@@ -114,7 +114,7 @@ function wgslType(expr::Union{Expr, Type{Expr}})
 	elseif expr.head == :call
 		@capture(expr, f_(x_)) && return "$(wgslType(eval(f)))($x)"
 		@capture(expr, f_(x_, y_)) && f in (:*, :-, :+, :/) && return "$(x)$(f)$(y)"
-		@capture(expr, f_(x_, y_)) && !(f in (:*, :-, :+, :/)) && return "$(f)($(f), $(y))"
+		@capture(expr, f_(x_, y_)) && !(f in (:*, :-, :+, :/)) && return "$(f)($(x), $(y))"
 		@capture(expr, f_(x__)) && begin
 			xargs = join(x, ", ")
 			return "$(wgslType(eval(f)))($(xargs))"
