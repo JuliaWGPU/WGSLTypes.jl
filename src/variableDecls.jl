@@ -21,6 +21,12 @@ abstract type StorableType end
 abstract type Constructible end
 abstract type Variable{T} end
 
+struct WArray{T} end
+
+wgslType(::Type{WArray{T}}) where T = begin
+	return "array<$(wgslType(T))>"
+end
+
 struct Texture2D{T} end
 struct Sampler end
 
