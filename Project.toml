@@ -16,7 +16,7 @@ Lazy = "^0.15"
 MacroTools = "0.5.6"
 Reexport = "^1.2"
 StaticArrays = "^1.5"
-julia = "^1.8"
+julia = "1.8"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
