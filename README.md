@@ -1,2 +1,2 @@
-# WGSLTypes.jl
-Types for WGSL shader code
+# WGSLTypes
+Types conventions for WGSL shader code
