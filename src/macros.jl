@@ -107,7 +107,6 @@ function wgslFunctionBody(fnbody, io, endstring)
 		len = length(fnargs)
 		endstring = len > 0 ? "}\n" : ""
 		for (idx, arg) in enumerate(fnargs)
-			arg = eval(arg)
 			if @capture(arg, aarg_::aatype_)
 				intype = wgslType(eval(aatype))
 				write(io, "$aarg:$(intype)"*(len==idx ? "" : ", "))
