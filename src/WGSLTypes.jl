@@ -14,4 +14,3 @@ export @builtin, @location, wgslCode, wglsType, @var, @letvar, makePaddedWGSLStr
 	Location, LocationDataType
 
 end
-
