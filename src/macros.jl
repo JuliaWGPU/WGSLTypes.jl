@@ -147,7 +147,7 @@ function wgslVertex(expr)
 	io = IOBuffer()
 	endstring = ""
 	@capture(expr, @vertex function fnbody__ end) || error("Expecting regular function!")
-	write(io, "@stage(vertex) ") # TODO should depend on version
+	write(io, "@vertex ") # TODO should depend on version
 	wgslFunctionBody(fnbody, io, endstring)
 	seek(io, 0)
 	code = read(io, String)
@@ -159,7 +159,7 @@ function wgslFragment(expr)
 	io = IOBuffer()
 	endstring = ""
 	@capture(expr, @fragment function fnbody__ end) || error("Expecting regular function!")
-	write(io, "@stage(fragment) ") # TODO should depend on version
+	write(io, "@fragment ") # TODO should depend on version
 	wgslFunctionBody(fnbody, io, endstring)
 	seek(io, 0)
 	code = read(io, String)
@@ -171,13 +171,13 @@ function wgslCompute(expr)
 	io = IOBuffer()
 	endstring = ""
 	if @capture(expr, @compute @workgroupSize(x_) function fnbody__ end)
-		write(io, "@stage(compute) @workgroup_size($x) \n")
+		write(io, "@compute @workgroup_size($x) \n")
 	elseif	@capture(expr, @compute @workgroupSize(x_,) function fnbody__ end)
-		write(io, "@stage(compute) @workgroup_size($x) \n")
+		write(io, "@compute @workgroup_size($x) \n")
 	elseif @capture(expr, @compute @workgroupSize(x_, y_) function fnbody__ end)
-		write(io, "@stage(compute) @workgroup_size($x, $y) \n")
+		write(io, "@compute @workgroup_size($x, $y) \n")
 	elseif @capture(expr, @compute @workgroupSize(x_, y_, z_) function fnbody__ end)
-		write(io, "@stage(compute) @workgroup_size($x, $y, $z) \n")
+		write(io, "@compute @workgroup_size($x, $y, $z) \n")
 	else
 		error("Did not match the compute declaration function!")
 	end
