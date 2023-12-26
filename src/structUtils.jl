@@ -10,7 +10,6 @@ export wgslType, @var, @letvar,
 	Location, @location, BuiltInDataType, BuiltinValue, LocationDataType
 
 using StaticArrays
-using GeometryBasics
 
 # visibiltyRender = getEnum(WGPUShaderStage, ["Vertex", "Fragment"])
 
@@ -30,6 +29,9 @@ end
 alignof(::Type{Mat2{T}}) where T = alignof(Vec2{T})
 alignof(::Type{Mat3{T}}) where T = alignof(Vec3{T})
 alignof(::Type{Mat4{T}}) where T = alignof(Vec4{T})
+
+alignof(::Type{Array{T, N}}) where {T, N} = alignof(T)
+alignof(::Type{Array{T}}) where T = alignof(T)
 
 alignof(::Type{SMatrix{N, M, T, L}}) where {N, M, T, L} = alignof(Vec{M, T})
 
@@ -95,7 +97,7 @@ byteSize(::Type{BuiltInDataType{B, D}}) where {B, D} = byteSize(D)
 byteSize(::Type{BuiltIn{B, S, D}}) where {B, S, D} = byteSize(D)
 byteSize(::Type{LocationDataType{B, D}}) where {B, D} = byteSize(D)
 byteSize(::Type{Location{B, S, D}}) where {B, S, D} = byteSize(D)
-
+byteSize(::Type{Array{T, N}}) where {T, N} = round(div(alignof(T), sizeof(T)), RoundUp)
 
 function makePaddedStruct(name::Symbol, abstractType::Union{Nothing, DataType}, fields...)
 	offsets = [0,]
@@ -146,7 +148,7 @@ function makePaddedStruct(name::Symbol, abstractType::Union{Nothing, DataType}, 
 	end
 	push!(offsets, newOffset)
 	unfields = [:($key::$val) for (key, val) in fieldVector]
-	absType = abstractType != nothing ? :($abstractType) : :(Any)
+	absType = abstractType !== nothing ? :($abstractType) : :(Any)
 	Expr(:struct, false, :($name <: $absType), quote $(unfields...) end) |> eval
 end
 
@@ -159,7 +161,7 @@ makePaddedStruct(name::Symbol, abstractType::Symbol, fields...) = makePaddedStru
 function makeStruct(name::Symbol, abstractType::Union{Nothing, DataType}, fields...)
 	name = name
 	unfields = [:($key::$val) for (key, val) in fields...]
-	absType = abstractType != nothing ? :($abstractType) : :(Any)
+	absType = abstractType !== nothing ? :($abstractType) : :(Any)
 	Expr(:struct, false, :($name <: $absType), quote $(unfields...) end) |> eval
 end
 
@@ -170,7 +172,6 @@ makeStruct(name::Symbol, abstractType::Symbol, fields...) = makeStruct(
 )
 
 function makePaddedWGSLStruct(name::Symbol, fields...)
-	@assert issorted(fields |> keys) "Fields are expected to be sorted for consistency"
 	offsets = [0,]
 	prevfieldSize = 0
 	fieldVector = [adaptType(field) for field in fields...]
@@ -189,7 +190,6 @@ function makePaddedWGSLStruct(name::Symbol, fields...)
 		prevfieldSize = fieldSize
 	end
 	len = length(fieldVector)
-	# @assert issorted(fieldVector) "Fields should remain sorted"
 	line = ["\nstruct $name {"]
 	for (idx, field) in enumerate(fieldVector)
 		push!(line, " "^4*"$(wgslType(field))"*(idx==len ? "" : ","))

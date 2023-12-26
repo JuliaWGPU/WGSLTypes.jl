@@ -1,13 +1,25 @@
 
 using WGSLTypes
-using MacroTools
-
-using GeometryBasics: Vec2, Vec3, Vec4, Mat4, Mat3, Mat2
 
 export @code_wgsl
 
+function evalUserField(expr)
+	if typeof(expr) == Expr
+		if @capture(expr, Array{T_})
+			if typeof(T) == Symbol
+				return Array{nameof(eval(T))}
+			end
+		elseif @capture(expr, Array{T_, N_})
+			# TODO same as above
+			return Array{nameof(eval(T)), eval(N)}
+		else
+			return wgslType(expr)
+		end
+	end
+end
+
 macro user(expr)
-	getproperty(@__MODULE__, expr)	
+	return evalUserField(expr)
 end
 
 
@@ -32,11 +44,11 @@ function evalStructField(fieldDict, field)
 			end
 		end
 	elseif @capture(field, name_::dtype_)
-		return merge!(fieldDict, Dict(name=>eval(dtype)))
+		return push!(fieldDict, name=>eval(dtype))
 	elseif @capture(field, @builtin btype_ name_::dtype_)
-		return merge!(fieldDict, Dict(name=>eval(:(@builtin $btype $dtype))))
+		return push!(fieldDict, name=>eval(:(@builtin $btype $dtype)))
 	elseif @capture(field, @location btype_ name_::dtype_)
-		return merge!(fieldDict, Dict(name=>eval(:(@location $btype $dtype))))
+		return push!(fieldDict, name=>eval(:(@location $btype $dtype)))
 	elseif @capture(field, quote stmnts__ end)
 		for stmnt in stmnts
 			evalStructField(fieldDict, stmnt)
@@ -50,12 +62,12 @@ function wgslStruct(expr)
 	expr = MacroTools.striplines(expr)
 	expr = MacroTools.flatten(expr)
 	@capture(expr, struct T_ fields__ end) || error("verify struct format of $T with fields $fields")
-	fieldDict = Dict{Symbol, DataType}()
+	fieldDict = OrderedDict{Symbol, DataType}()
 	for field in fields
 		evalfield = evalStructField(fieldDict, field)
 	end
-	makePaddedStruct(T, :UserStruct, sort(fieldDict))
-	makePaddedWGSLStruct(T, sort(fieldDict))
+	makePaddedStruct(T, :UserStruct, fieldDict)
+	makePaddedWGSLStruct(T, fieldDict)
 end
 
 # TODO rename simple asssignment and bring back original assignment if needed
@@ -69,40 +81,64 @@ function wgslAssignment(expr)
 	return stmnt
 end
 
-
-function wgslFunctionStatement(io, stmnt)
+# function wgslDecisionBlock(io, stmnts; indent=true, indentLevel=0)
+# 	for stmnt in stmnts
+# 		if indent==true
+# 			indentLevel += 1
+# 			write(io, " "^(4*indentLevel))
+# 		end
+# 		wgslFunctionStatement(io, stmnt)
+# 	end
+# end
+function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
+	if indent==true
+		write(io, " "^(4*indentLevel))
+	end
 	if @capture(stmnt, @var t__)
-		write(io, " "^4*wgslVariable(stmnt))
+		write(io, wgslVariable(stmnt))
 	elseif @capture(stmnt, a_ = b_)
-		write(io, " "^4*wgslAssignment(stmnt))
+		write(io, wgslAssignment(stmnt))
 	elseif @capture(stmnt, @let t_ | @let t__)
 		stmnt.args[1] = Symbol("@letvar") # replace let with letvar
-		write(io, " "^4*wgslLet(stmnt))
+		write(io, wgslLet(stmnt))
 	elseif @capture(stmnt, return t_)
-		write(io, " "^4*"return $(wgslType(t));\n")
+		write(io, "return $(wgslType(t));\n")
 	elseif @capture(stmnt, if cond_ ifblock__ end)
 		if cond == true
-			wgslFunctionStatements(io, ifblock)
+			wgslFunctionStatements(io, ifblock;indent=true, indentLevel=indentLevel)
 		end
+	elseif @capture(stmnt, @escif if cond_ blocks__ end)
+		write(io, " "^(4*(indentLevel-1))*"if $cond {\n")
+		wgslFunctionStatements(io, blocks; indent=false, indentLevel=indentLevel)
+		write(io, " "^(4*(indentLevel))*"}\n")
 	elseif @capture(stmnt, if cond_ ifBlock__ else elseBlock__ end)
 		if eval(cond) == true
-			wgslFunctionStatements(io, ifBlock)
+			wgslFunctionStatements(io, ifBlock; indent=true, indentLevel=indentLevel)
 		else
-			wgslFunctionStatements(io, elseBlock)
+			wgslFunctionStatements(io, elseBlock; indent=true, indentLevel=indentLevel)
 		end
 	else
 		@error "Failed to capture statment : $stmnt !!"
 	end
 end
 
-function wgslFunctionStatements(io, stmnts)
+function wgslFunctionStatements(io, stmnts; indent=true, indentLevel=0)
 	for stmnt in stmnts
-		wgslFunctionStatement(io, stmnt)
+		if indent==true
+			write(io, " "^(4*indentLevel))
+		end
+		wgslFunctionStatement(io, stmnt; indent=true, indentLevel=indentLevel+1)
 	end
 end
 
 function wgslFunctionBody(fnbody, io, endstring)
 	if @capture(fnbody[1], fnname_(fnargs__)::fnout_)
+		if !(fnname in wgslfunctions)
+			quote	
+				function $fnname() end
+				wgslType(::typeof(eval($fnname))) = string($fnname)
+			end |> eval
+		end
 		write(io, "fn $fnname(")
 		len = length(fnargs)
 		endstring = len > 0 ? "}\n" : ""
@@ -110,10 +146,15 @@ function wgslFunctionBody(fnbody, io, endstring)
 			if @capture(arg, aarg_::aatype_)
 				intype = wgslType(eval(aatype))
 				write(io, "$aarg:$(intype)"*(len==idx ? "" : ", "))
-			elseif @capture(arg, @builtin e_ => id_::typ_)
+			elseif @capture(arg, @builtin e_ id_::typ_)
 				intype = wgslType(eval(typ))
 				write(io, "@builtin($e) $id:$(intype)")
+			elseif @capture(arg, @location e_ id_::typ_)
+				intype = wgslType(eval(typ))
+				write(io, "@location($e) $id:$(intype)")
 			end
+			write(io, idx == length(fnargs) ? "" : ", ")
+			# TODO what is this check ... not clear
 			@capture(fnargs, aarg_) || error("Expecting type for function argument in WGSL!")
 		end
 		outtype = wgslType(eval(fnout))
@@ -128,10 +169,15 @@ function wgslFunctionBody(fnbody, io, endstring)
 			if @capture(arg, aarg_::aatype_)
 				intype = wgslType(eval(aatype))
 				write(io, "$aarg:$(intype)"*(len==idx ? "" : ", "))
-			elseif @capture(arg, @builtin e_ => id_::typ_)
+			elseif @capture(arg, @builtin e_ id_::typ_)
 				intype = wgslType(eval(typ))
 				write(io, "@builtin($e) $id:$(intype)")
+			elseif @capture(arg, @location e_ id_::typ_)
+				intype = wgslType(eval(typ))
+				write(io, "@location($e) $id:$(intype)")
 			end
+			write(io, idx == length(fnargs) ? "" : ", ")
+			# TODO what is this check ... not clear
 			@capture(fnargs, aarg_) || error("Expecting type for function argument in WGSL!")
 		end
 		write(io, ") { \n")
@@ -218,6 +264,13 @@ function wgslLet(expr)
 	return code
 end
 
+
+function wgslConstVariable(block)
+	@capture(block, @const constExpr_)
+	return "const $(wgslType(constExpr));\n"
+end
+
+
 # IOContext TODO
 function wgslCode(expr)
 	io = IOBuffer()
@@ -231,6 +284,8 @@ function wgslCode(expr)
 			write(io, wgslAssignment(block))
 		elseif @capture(block, @var t__)
 			write(io, wgslVariable(block))
+		elseif @capture(block, @const ct__)
+			write(io, wgslConstVariable(block))
 		elseif @capture(block, @vertex function a__ end)
 			write(io, wgslVertex(block))
 			write(io, "\n")
