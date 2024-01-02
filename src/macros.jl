@@ -117,6 +117,12 @@ function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
 		else
 			wgslFunctionStatements(io, elseBlock; indent=true, indentLevel=indentLevel)
 		end
+	elseif @capture(stmnt, @esc st_ )
+		if st == :discard
+			write(io, "discard;\n")
+		else
+			@error "This esc statement is not covered yet !!!"
+		end
 	else
 		@error "Failed to capture statment : $stmnt !!"
 	end
