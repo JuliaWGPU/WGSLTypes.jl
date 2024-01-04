@@ -33,7 +33,7 @@ alignof(::Type{Mat4{T}}) where T = alignof(Vec4{T})
 alignof(::Type{Array{T, N}}) where {T, N} = alignof(T)
 alignof(::Type{Array{T}}) where T = alignof(T)
 
-alignof(::Type{SMatrix{N, M, T, L}}) where {N, M, T, L} = alignof(Vec{M, T})
+alignof(::Type{SMatrix{N, M, T, L}}) where {N, M, T, L} = alignof(SVector{M, T})
 
 function makeStruct(name::String, fields::Array{String}; mutableType=false, abstractType="")
 	line = [(mutableType ? "mutable " : "")*"struct $name"*abstractType]
