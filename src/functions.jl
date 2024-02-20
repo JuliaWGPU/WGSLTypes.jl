@@ -109,3 +109,9 @@ for func in wgslfunctions
 	end |> eval
 end
 
+# Bitcast is internal function not exported
+# So treating it specially here
+#setproperty!(@__MODULE__, :bitcast, Base.bitcast)
+#push!(wgslfunctions, :bitcast)
+#wgslType(::typeof(eval(Base.bitcast))) = string(:bitcast)
+#wgslType(::typeof(eval(Base.bitcast{S}))) where S = "bitcast<$(wgslType(S))>"
