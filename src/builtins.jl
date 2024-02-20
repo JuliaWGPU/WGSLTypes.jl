@@ -1,8 +1,5 @@
-using GeometryBasics
-using GeometryBasics: Vec2, Vec3, Vec4, Mat2, Mat3, Mat4
 
 export BuiltinValue, getEnumBuiltinValue, BuiltIn, @builtin, BuiltInDataType
-
 
 @enum BuiltinValue begin
 	vertex_index
@@ -19,7 +16,6 @@ export BuiltinValue, getEnumBuiltinValue, BuiltIn, @builtin, BuiltInDataType
 	sample_mask
 end
 
-
 function getEnumBuiltinValue(s::Symbol)
 	ins = instances(BuiltinValue)
 	for i in ins
@@ -30,42 +26,16 @@ function getEnumBuiltinValue(s::Symbol)
 	@error "$s is not in builtin types"
 end
 
-
 struct BuiltIn{B, S, D} end
-
 
 function BuiltIn(btype::Symbol, pair::Pair{Symbol, DataType})
 	bVal = getEnumBuiltinValue(btype) |> Val
-	sVal = pair.first |> Val
+	sVal = pair.first
 	dVal = pair.second |> Val
 	return BuiltIn{bVal, sVal, dVal}
 end
 
-
-macro builtin(exp)
-	@assert typeof(exp) == Expr """\n
-		Expecting expression, found typeof(exp) instead
-			builtin can be defined as
-			@builtin (builtinValue) => sym::DataType
-		"""
-	@assert exp.head == :call "Expecting (builtinValue) => sym::DataType"
-	@assert typeof(exp.args) == Vector{Any} "E $(typeof(exp.args))"
-	@assert exp.args[1] == :(=>) "Should check"
-	@assert exp.args[2] in Symbol.(instances(BuiltinValue)) "$(exp.args[2]) is not	 in BuiltinValue Enum"
-	b = exp.args[2]
-	@assert typeof(exp.args[3]) == Expr """
-			This expression should be of format sym::Float32
-		"""
-	exp2 = exp.args[3]
-	@assert exp2.head == :(::) "Expecting a seperator :: "
-	s = exp2.args[1] 
-	d = exp2.args[2] 
-	return BuiltIn(b, s=>eval(d))
-end
-
-
 struct BuiltInDataType{B, D} end
-
 
 function BuiltInDataType(btype::Symbol, dType::DataType)
 	bVal = getEnumBuiltinValue(btype) |> Val
@@ -73,8 +43,7 @@ function BuiltInDataType(btype::Symbol, dType::DataType)
 	return BuiltInDataType{bVal, dVal}
 end
 
-
-macro builtin(btype, dtype)
+macro builtin(btype, dtype::DataType)
 	@assert typeof(btype) == Symbol """\n
 		Expecting expression, found typeof(exp) instead
 			builtin can be defined as
@@ -85,6 +54,11 @@ macro builtin(btype, dtype)
 	return BuiltInDataType(btype, eval(dtype))
 end
 
+macro builtin(sym::Symbol, expr::Expr)
+	@capture(expr, a_::b_) && return BuiltIn(sym, a=>eval(b))
+	@capture(expr, a_) && return BuiltInDataType(sym, eval(a))
+	error("BuiltIn didn't follow expected format!!!")
+end
 
 function BuiltIn(sVal::Symbol, ::Type{BuiltInDataType{B, D}}) where {B, D}
 	return BuiltIn{B, sVal, D}

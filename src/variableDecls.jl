@@ -1,7 +1,7 @@
 
 export StorageVar, UniformVar, PrivateVar, @var, @letvar
 
-using MacroTools
+using Infiltrator
 using Lazy:@forward
 
 struct ImplicitPadding
@@ -19,7 +19,7 @@ abstract type Atomic end
 abstract type Zeroable end
 abstract type StorableType end
 abstract type Constructible end
-abstract type Variable{T} end
+abstract type Variable end
 
 struct WArray{T} end
 
@@ -71,14 +71,14 @@ wgslType(a::Val{getEnumVariableType(:WorkGroup)}) = "<workgroup>"
 wgslType(a::Val{getEnumVariableType(:StorageRead)}) = "<storage, read>"
 wgslType(a::Val{getEnumVariableType(:StorageReadWrite)}) = "<storage, read_write>"
 
-struct VarDataType{T} <: Variable{T}
+struct VarDataType{T} <: Variable
 	attribute::Union{Nothing, VarAttribute}
 	valTypePair::Pair{Symbol, eltype(T)}
 	value::Union{Nothing, eltype(T)}
 	varType::VariableType
 end
 
-struct LetDataType{T} <: Variable{T}
+struct LetDataType{T} <: Variable
 	valTypePair::Pair{Symbol, eltype(T)}
 	value::Union{Nothing, eltype(T)}
 end
@@ -103,18 +103,30 @@ end
 
 wgslType(var::VarDataType{T}) where T = begin
 	attrStr = let t = var.attribute; t == nothing ? "" : wgslType(t) end
-	varStr = "var$(wgslType(Val(var.varType))) $(wgslType(var.valTypePair))"
+	varStr = "var $(wgslType(Val(var.varType))) $(wgslType(var.valTypePair))"
 	valStr = let t = var.value; t == nothing ? "" : "= $(wgslType(t))" end
 	return "$(attrStr)$(varStr) $(valStr);\n"	
 end
 
 wgslType(letvar::LetDataType{T}) where T = begin
 	letStr = "let $(wgslType(letvar.valTypePair))"
-	valStr = let t = letvar.value; t == nothing ? "" : "= $(wgslType(t))" end
+	t = letvar.value
+	valStr = ""
+	if @capture(t, SMatrix{N_, M_, TT_, L_}(a__))
+		@assert length(a) == N*M "Matrix dimensions should match input length: But found {$N, $M} and {$L} instead!!!"
+		valStr = "= $(wgslType(t))"
+	elseif @capture(t, SVector{N_, TT_, L_}(a__))
+		@infiltrate
+		@assert length(a) == N "Matrix dimensions should match input length: But found {$N} and {$L} instead!!!"
+		valStr = "= $(wgslType(t))"
+	else
+		valStr = let t = letvar.value; t === nothing ? "" : "= $(wgslType(t))" end
+	end
+	@assert valStr != "" "Let var should be defined ..."
 	return "$(letStr) $(valStr);\n"
 end
 
-struct GenericVar{T} <: Variable{T}
+struct GenericVar{T} <: Variable
 	var::VarDataType{T}
 end
 
@@ -136,7 +148,7 @@ end
 
 @forward GenericVar.var attribute, valueType, value, Base.getproperty, Base.setproperty!
 
-struct UniformVar{T} <: Variable{T} 
+struct UniformVar{T} <: Variable
 	var::VarDataType{T}	
 end
 
@@ -158,7 +170,7 @@ end
 
 @forward UniformVar.var attribute, valueType, value, Base.getproperty, Base.setproperty!
 
-struct StorageVar{T} <: Variable{T}
+struct StorageVar{T} <: Variable
 	var::VarDataType{T}	
 end
 
@@ -181,7 +193,7 @@ end
 @forward StorageVar.var attribute, valueType, value, Base.getproperty, Base.setproperty!
 
 
-struct PrivateVar{T} <: Variable{T}
+struct PrivateVar{T} <: Variable
 	var::VarDataType{T}
 end
 
@@ -234,41 +246,41 @@ end
 
 
 macro var(dtype::Expr)
-	@capture(dtype, a_::dt_) && return defineVar(:Generic, a=>eval(dt), nothing, nothing, nothing)
-	@capture(dtype, a_::dt_ = v_) && return defineVar(:Generic, a=>eval(dt), nothing, nothing, v)
+	@capture(dtype, a_::dt_) && return defineVar(:Generic, a=>(dt |> eval), nothing, nothing, nothing)
+	@capture(dtype, a_::dt_ = v_) && return defineVar(:Generic, a=>(dt |> eval), nothing, nothing, v)
 	@capture(dtype, a_ = v_) && return defineVar(:Generic, a=>:Any, nothing, nothing, v)
 	@error "Unexpected Var expression !!!"
 end
 
 macro var(vtype, dtype::Expr)
 	@capture(dtype, a_::dt_) || @error "Expecting sym::dtype! Current args are: $vtype, $dtype"
-	defineVar(vtype, a=>eval(dt), nothing, nothing, nothing)
+	defineVar(vtype, a=>(eval(dt)), nothing, nothing, nothing)
 end
 
 macro var(vtype::Symbol, group::Int, binding::Int, dtype::Expr)
 	@capture(dtype, a_::dt_) || @error "Expecting sym::dtype!"
-	defineVar(vtype, a=>eval(dt), group, binding, nothing)
+	defineVar(vtype, a=>(eval(dt)), group, binding, nothing)
 end
 
 macro var(vtype::Symbol, group::Int, binding::Int, dtype::Expr, value)
 	@capture(dtype, a_::dt_) || @error "Expecting sym::dtype!"
-	defineVar(vtype, a=>eval(dt), group, binding, value)
+	defineVar(vtype, a=>(eval(dt)), group, binding, value)
 end
 
 macro var(vtype::Symbol, dtype::Expr, value)
 	@capture(dtype, a_::dt_) || @error "Expecting sym::dtype!"
-	defineVar(vtype, a=>eval(dt), nothing, nothing, value)
+	defineVar(vtype, a=>(eval(dt)), nothing, nothing, value)
 end
 
 macro letvar(dtype::Expr) # TODO type must be checked most likely
-	@capture(dtype, a_::dt_ = v_) &&  return defineLet(a=>eval(dt), v)
-	@capture(dtype, a_::dt_) && return defineLet(a=>eval(dt), nothing)
+	@capture(dtype, a_::dt_ = v_) &&  return defineLet(a=>(eval(dt)), v)
+	@capture(dtype, a_::dt_) && return defineLet(a=>(eval(dt)), nothing)
 	@capture(dtype, a_=v_) && return defineLet(a=>:Any, v)
 	@error "Expecting @let sym::dtype value!"
 end
 
 macro letvar(dtype::Expr, value::Any) # TODO type must be checked most likely
-	@capture(dtype, a_::dt_) && return defineLet(a=>eval(dt), value)
+	@capture(dtype, a_::dt_) && return defineLet(a=>(eval(dt)), value)
 	@error "Expecting @let sym::dtype value!"
 end
 
