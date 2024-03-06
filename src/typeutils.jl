@@ -154,9 +154,9 @@ function wgslType(expr::Union{Expr, Type{Expr}})
 			return "$(wgslType(eval(f)))($(xargs))"
 		end
 	elseif @capture(expr, a_::b_)
-		return "$a::$(wgslType(eval(b)))"
+		return "$a:$(wgslType(eval(b)))"
 	elseif @capture(expr, a_::b_ = c_)
-		return "$a::$(wgslType(eval(b))) = $c"
+		return "$a:$(wgslType(eval(b))) = $c"
 	elseif @capture(expr, a_.b_)
 		return "$a.$b"
 	elseif @capture(expr, ref_[b_])
