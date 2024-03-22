@@ -109,11 +109,12 @@ function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
 		end
 	# TODO this is incomplete
 	elseif @capture(stmnt, @forloop forLoop_)
-		@capture(forLoop, for idx_ in range_ block__ end)
-		r = Base.eval(range)
+		@capture(forLoop, for idx_::idxType_ in range_ block__ end)
+		@capture(range, start_:step_:stop_)
 		#idxInit = @var Base.eval(:($idx::UInt32 = Meta.parse(wgslType(UInt32(r.start - 1)))))
 		#@infiltrate
-		write(io, " "^(4*(indentLevel-1))*"for( var $idx = 0; $idx < $(r.stop); $(idx)++) { \n")
+		idxExpr = :($idx::$idxType)
+		write(io, " "^(4*(indentLevel-1))*"for( var $(wgslType(idxExpr)) = $(start); $idx < $(stop); $(idx)++) { \n")
 		wgslFunctionStatements(io, block; indent=false, indentLevel=indentLevel)
 		write(io, " "^(4*indentLevel)*"}\n")
 	elseif @capture(stmnt, @escif if cond_ blocks__ end)
