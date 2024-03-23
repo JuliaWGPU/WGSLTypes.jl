@@ -18,8 +18,8 @@ juliaToWGSLTypes = Dict(
 wgslType(a::Bool) = a;
 wgslType(a::Int32) = "$(a)i";
 wgslType(a::UInt32) = "$(a)u";
-wgslType(a::Float16) = a;
-wgslType(a::Float32) = a;
+wgslType(a::Float16) = "$(a)"; #TODO refer to wgsl specs and update this
+wgslType(a::Float32) = "$(a)";
 wgslType(a::Int) = a;
 wgslType(a::Number) = a;
 
@@ -154,9 +154,9 @@ function wgslType(expr::Union{Expr, Type{Expr}})
 			return "$(wgslType(eval(f)))($(xargs))"
 		end
 	elseif @capture(expr, a_::b_)
-		return "$a::$(wgslType(eval(b)))"
+		return "$a:$(wgslType(eval(b)))"
 	elseif @capture(expr, a_::b_ = c_)
-		return "$a::$(wgslType(eval(b))) = $c"
+		return "$a:$(wgslType(eval(b))) = $c"
 	elseif @capture(expr, a_.b_)
 		return "$a.$b"
 	elseif @capture(expr, ref_[b_])
