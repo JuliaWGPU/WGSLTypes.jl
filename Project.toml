@@ -1,7 +1,7 @@
 name = "WGSLTypes"
 uuid = "8cf5275a-6167-4820-ac24-74d7d0e6cf05"
 authors = ["arhik <arhik23@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
