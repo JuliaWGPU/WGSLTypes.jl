@@ -107,14 +107,20 @@ function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
 		if cond == true
 			wgslFunctionStatements(io, ifblock;indent=true, indentLevel=indentLevel)
 		end
-	# TODO this is incomplete
+		# TODO this is incomplete
+	elseif @capture(stmnt, f_(a__))
+		if a == []
+			if f == :synchronize
+				write(io, "workgroupBarrier();\n")
+			end
+		end
 	elseif @capture(stmnt, @forloop forLoop_)
 		@capture(forLoop, for idx_::idxType_ in range_ block__ end)
 		@capture(range, start_:step_:stop_)
 		#idxInit = @var Base.eval(:($idx::UInt32 = Meta.parse(wgslType(UInt32(r.start - 1)))))
 		#@infiltrate
 		idxExpr = :($idx::$idxType)
-		write(io, " "^(4*(indentLevel-1))*"for( var $(wgslType(idxExpr)) = $(start); $idx < $(stop); $(idx)++) { \n")
+		write(io, "for(var $(wgslType(idxExpr)) = $(start); $idx < $(stop); $(idx)++) { \n")
 		wgslFunctionStatements(io, block; indent=false, indentLevel=indentLevel)
 		write(io, " "^(4*indentLevel)*"}\n")
 	elseif @capture(stmnt, @escif if cond_ blocks__ end)
