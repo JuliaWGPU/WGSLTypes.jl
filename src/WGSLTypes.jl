@@ -1,5 +1,6 @@
 module WGSLTypes
 
+using Infiltrator
 using MacroTools
 using StaticArrays
 using DataStructures
