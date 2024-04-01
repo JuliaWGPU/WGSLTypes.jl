@@ -73,11 +73,32 @@ end
 # TODO rename simple asssignment and bring back original assignment if needed
 function wgslAssignment(expr)
 	io = IOBuffer()
-	@capture(expr, a_ = b_) || error("Expecting simple assignment a = b")
-	write(io, "$(wgslType(a)) = $(wgslType(b));\n")
-	seek(io, 0)
-	stmnt = read(io, String)
-	close(io)
+	if @capture(expr, a_ = b_)
+		write(io, "$(wgslType(a)) = $(wgslType(b));\n")
+		seek(io, 0)
+		stmnt = read(io, String)
+		close(io)
+	elseif @capture(expr, a_ += b_) || error("Expecting simple assignment a = b")
+		write(io, "$(wgslType(a)) += $(wgslType(b));\n")
+		seek(io, 0)
+		stmnt = read(io, String)
+		close(io)
+	elseif @capture(expr, a_ -= b_) || error("Expecting simple assignment a = b")
+		write(io, "$(wgslType(a)) -= $(wgslType(b));\n")
+		seek(io, 0)
+		stmnt = read(io, String)
+		close(io)
+	elseif @capture(expr, a_ *= b_) || error("Expecting simple assignment a = b")
+		write(io, "$(wgslType(a)) *= $(wgslType(b));\n")
+		seek(io, 0)
+		stmnt = read(io, String)
+		close(io)
+	elseif @capture(expr, a_ /= b_) || error("Expecting simple assignment a = b")
+		write(io, "$(wgslType(a)) /= $(wgslType(b));\n")
+		seek(io, 0)
+		stmnt = read(io, String)
+		close(io)
+	end
 	return stmnt
 end
 
@@ -98,6 +119,14 @@ function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
 		write(io, wgslVariable(stmnt))
 	elseif @capture(stmnt, a_ = b_)
 		write(io, wgslAssignment(stmnt))
+	elseif @capture(stmnt, a_ += b_)
+		write(io, wgslAssignment(stmnt))
+	elseif @capture(stmnt, a_ -= b_)
+		write(io, wgslAssignment(stmnt))
+	elseif @capture(stmnt, a_ *= b_)
+		write(io, wgslAssignment(stmnt))
+	elseif @capture(stmnt, a_ /= b_)
+		write(io, wgslAssignment(stmnt))
 	elseif @capture(stmnt, @let t_ | @let t__)
 		stmnt.args[1] = Symbol("@letvar") # replace let with letvar
 		write(io, wgslLet(stmnt))
@@ -109,10 +138,13 @@ function wgslFunctionStatement(io, stmnt; indent=true, indentLevel=0)
 		end
 		# TODO this is incomplete
 	elseif @capture(stmnt, f_(a__))
-		if a == []
-			if f == :synchronize
-				write(io, "workgroupBarrier();\n")
-			end
+		if f == :synchronize && length(a) == 0
+			write(io, "workgroupBarrier();\n")
+		elseif startswith(f |> string, "atomic")
+			@infiltrate
+			write(io, "$f($(join(wgslType.(a), ", ")));\n")
+		else
+			@error "This is function $f is not captured yet"
 		end
 	elseif @capture(stmnt, @forloop forLoop_)
 		@capture(forLoop, for idx_::idxType_ in range_ block__ end)

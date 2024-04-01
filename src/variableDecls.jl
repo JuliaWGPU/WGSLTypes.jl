@@ -103,7 +103,7 @@ end
 
 wgslType(var::VarDataType{T}) where T = begin
 	attrStr = let t = var.attribute; t == nothing ? "" : wgslType(t) end
-	varStr = "var $(wgslType(Val(var.varType))) $(wgslType(var.valTypePair))"
+	varStr = "var$(wgslType(Val(var.varType))) $(wgslType(var.valTypePair))"
 	valStr = let t = var.value; t == nothing ? "" : "= $(wgslType(t))" end
 	return "$(attrStr)$(varStr) $(valStr);\n"	
 end
